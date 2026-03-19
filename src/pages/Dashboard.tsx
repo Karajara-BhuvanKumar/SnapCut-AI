@@ -63,6 +63,13 @@ const UploadZone = ({ usageCount, setUsageCount, processedHistory, setProcessedH
 
 
 
+  const ensureHttpsUrl = (url: string): string => {
+    if (url.startsWith("http://res.cloudinary.com")) {
+      return url.replace("http://", "https://");
+    }
+    return url;
+  };
+
   const handleProcess = async () => {
     if (!selectedFile) {
       toast({ title: "No image selected", description: "Please upload an image first.", variant: "destructive" });
@@ -97,9 +104,10 @@ const UploadZone = ({ usageCount, setUsageCount, processedHistory, setProcessedH
       const result = await response.json();
       console.log("Webhook response:", result);
       if (result && result.url) {
-        setProcessedPreview(result.url);
+        const secureUrl = ensureHttpsUrl(result.url);
+        setProcessedPreview(secureUrl);
         setUsageCount((prevCount) => prevCount + 1); // Increment usage count
-        setProcessedHistory((prevHistory) => [result.url, ...prevHistory]); // Add to history
+        setProcessedHistory((prevHistory) => [secureUrl, ...prevHistory]); // Add to history
         toast({ title: "Success", description: "Background removed! Displaying processed image.", variant: "success" });
 
         if (usageCount + 1 >= MAX_USAGE) { // Check if limit is reached after incrementing
