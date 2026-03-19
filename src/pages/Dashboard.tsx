@@ -1,15 +1,20 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import Layout from "@/components/Layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Upload, Download, Image, Zap, History, CreditCard } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
-const UploadZone = () => {
+const UploadZone = ({ usageCount, setUsageCount, processedHistory, setProcessedHistory }: { usageCount: number; setUsageCount: React.Dispatch<React.SetStateAction<number>>; processedHistory: string[]; setProcessedHistory: React.Dispatch<React.SetStateAction<string[]>> }) => {
   const [isDragging, setIsDragging] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
+  const [processedPreview, setProcessedPreview] = useState<string | null>(null);
   const { toast } = useToast();
+  const navigate = useNavigate();
+
+  const MAX_USAGE = 5;
 
   const validateFile = (file: File): boolean => {
     const validTypes = ["image/jpeg", "image/png", "image/webp"];
@@ -37,10 +42,105 @@ const UploadZone = () => {
     setIsDragging(false);
     const file = e.dataTransfer.files[0];
     if (file) handleFile(file);
-  }, []);
+  }, [handleFile]);
 
-  const handleProcess = () => {
-    toast({ title: "Processing...", description: "Connect backend to enable AI processing." });
+  const handlePaste = useCallback((e: React.ClipboardEvent) => {
+    const items = e.clipboardData?.items;
+    if (items) {
+      for (let i = 0; i < items.length; i++) {
+        if (items[i].type.indexOf("image") !== -1) {
+          const file = items[i].getAsFile();
+          if (file) {
+            handleFile(file);
+            break;
+          }
+        }
+      }
+    }
+  }, [handleFile]);
+
+
+
+
+
+  const handleProcess = async () => {
+    if (!selectedFile) {
+      toast({ title: "No image selected", description: "Please upload an image first.", variant: "destructive" });
+      return;
+    }
+
+    if (usageCount >= MAX_USAGE) {
+      toast({
+        title: "Usage Limit Reached",
+        description: `You have processed ${MAX_USAGE} images. Please upgrade to process more.`,
+        variant: "destructive",
+      });
+      navigate("/pricing");
+      return;
+    }
+
+    toast({ title: "Processing...", description: "Sending image to background removal service." });
+
+    const formData = new FormData();
+    formData.append("image", selectedFile);
+
+    try {
+      const response = await fetch("https://bhuvanmeowmeow.app.n8n.cloud/webhook/remove-background", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const result = await response.json();
+      console.log("Webhook response:", result);
+      if (result && result.url) {
+        setProcessedPreview(result.url);
+        setUsageCount((prevCount) => prevCount + 1); // Increment usage count
+        setProcessedHistory((prevHistory) => [result.url, ...prevHistory]); // Add to history
+        toast({ title: "Success", description: "Background removed! Displaying processed image.", variant: "success" });
+
+        if (usageCount + 1 >= MAX_USAGE) { // Check if limit is reached after incrementing
+          toast({
+            title: "Usage Limit Reached",
+            description: `You have processed ${MAX_USAGE} images. Redirecting to pricing page.`,
+            variant: "destructive",
+          });
+          navigate("/pricing");
+        }
+
+      } else {
+        toast({ title: "Error", description: "Webhook response did not contain a valid image URL.", variant: "destructive" });
+      }
+    } catch (error) {
+      console.error("Error sending image to webhook:", error);
+      toast({ title: "Error", description: "Failed to process image. Please try again.", variant: "destructive" });
+    }
+  };
+
+  const handleDownload = async () => {
+    if (processedPreview) {
+      try {
+        const response = await fetch(processedPreview);
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = "processed-image.png"; // You can make this dynamic if needed
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url); // Clean up the object URL
+        toast({ title: "Download Started", description: "Your processed image is downloading.", variant: "success" });
+      } catch (error) {
+        console.error("Error downloading image:", error);
+        toast({ title: "Download Failed", description: "Could not download the image. Please try again.", variant: "destructive" });
+      }
+    } else {
+      toast({ title: "No Image to Download", description: "Please process an image first.", variant: "destructive" });
+    }
   };
 
   return (
@@ -49,6 +149,7 @@ const UploadZone = () => {
         onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
         onDragLeave={() => setIsDragging(false)}
         onDrop={handleDrop}
+        onPaste={handlePaste}
         className={`relative border-2 border-dashed rounded-xl p-12 text-center transition-all cursor-pointer ${
           isDragging ? "border-primary bg-primary/5" : "border-border/60 hover:border-primary/50"
         }`}
@@ -77,20 +178,30 @@ const UploadZone = () => {
             <div className="grid md:grid-cols-2 gap-6">
               <div>
                 <p className="text-sm text-muted-foreground mb-2 font-medium">Original</p>
-                <img src={preview} alt="Original" className="rounded-lg w-full max-h-80 object-contain bg-muted/20" />
+                {preview ? (
+                  <img src={preview} alt="Original" className="rounded-lg w-full max-h-80 object-contain bg-muted/20" />
+                ) : (
+                  <div className="rounded-lg w-full h-80 bg-muted/20 flex items-center justify-center">
+                    <p className="text-sm text-muted-foreground">Upload an image</p>
+                  </div>
+                )}
               </div>
               <div>
                 <p className="text-sm text-muted-foreground mb-2 font-medium">Result</p>
-                <div className="rounded-lg w-full h-80 bg-muted/20 flex items-center justify-center" style={{ backgroundImage: "repeating-conic-gradient(hsl(var(--muted)) 0% 25%, transparent 0% 50%)", backgroundSize: "20px 20px" }}>
-                  <p className="text-sm text-muted-foreground">Process to see result</p>
-                </div>
+                {processedPreview ? (
+                  <img src={processedPreview} alt="Processed" className="rounded-lg w-full max-h-80 object-contain bg-muted/20" />
+                ) : (
+                  <div className="rounded-lg w-full h-80 bg-muted/20 flex items-center justify-center" style={{ backgroundImage: "repeating-conic-gradient(hsl(var(--muted)) 0% 25%, transparent 0% 50%)", backgroundSize: "20px 20px" }}>
+                    <p className="text-sm text-muted-foreground">Process to see result</p>
+                  </div>
+                )}
               </div>
             </div>
             <div className="flex gap-3 mt-6">
               <Button variant="gradient" onClick={handleProcess}>
                 <Zap className="h-4 w-4" /> Remove Background
               </Button>
-              <Button variant="outline" disabled>
+              <Button variant="outline" onClick={handleDownload} disabled={!processedPreview}>
                 <Download className="h-4 w-4" /> Download
               </Button>
             </div>
@@ -101,18 +212,36 @@ const UploadZone = () => {
   );
 };
 
-const Dashboard = () => (
-  <Layout hideFooter>
-    <div className="container py-8">
-      <div className="mb-8">
-        <h1 className="font-display text-2xl font-bold mb-1">Upload Workspace</h1>
-        <p className="text-muted-foreground text-sm">Remove backgrounds from your images instantly.</p>
-      </div>
+const Dashboard = () => {
+  const [usageCount, setUsageCount] = useState(() => {
+    const savedCount = localStorage.getItem("usageCount");
+    return savedCount ? parseInt(savedCount, 10) : 0;
+  });
+  const [processedHistory, setProcessedHistory] = useState<string[]>(() => {
+    const savedHistory = localStorage.getItem("processedHistory");
+    return savedHistory ? JSON.parse(savedHistory) : [];
+  });
 
-      <div className="grid lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2">
-          <UploadZone />
+  useEffect(() => {
+    localStorage.setItem("usageCount", usageCount.toString());
+  }, [usageCount]);
+
+  useEffect(() => {
+    localStorage.setItem("processedHistory", JSON.stringify(processedHistory));
+  }, [processedHistory]);
+
+  return (
+    <Layout hideFooter>
+      <div className="container py-8">
+        <div className="mb-8">
+          <h1 className="font-display text-2xl font-bold mb-1">Upload Workspace</h1>
+          <p className="text-muted-foreground text-sm">Remove backgrounds from your images instantly.</p>
         </div>
+
+        <div className="grid lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2">
+            <UploadZone usageCount={usageCount} setUsageCount={setUsageCount} processedHistory={processedHistory} setProcessedHistory={setProcessedHistory} />
+          </div>
 
         <div className="space-y-4">
           <Card className="glow-hover">
@@ -122,10 +251,10 @@ const Dashboard = () => (
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold">0 / 5</div>
+              <div className="text-3xl font-bold">{usageCount} / 5</div>
               <p className="text-xs text-muted-foreground mt-1">images processed today</p>
               <div className="w-full h-2 bg-muted rounded-full mt-3">
-                <div className="h-2 gradient-bg rounded-full" style={{ width: "0%" }} />
+                <div className="h-2 gradient-bg rounded-full" style={{ width: `${(usageCount / 5) * 100}%` }} />
               </div>
             </CardContent>
           </Card>
@@ -150,7 +279,15 @@ const Dashboard = () => (
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-sm text-muted-foreground">No images processed yet.</p>
+              {processedHistory.length > 0 ? (
+                <div className="grid grid-cols-3 gap-2">
+                  {processedHistory.map((imageUrl, index) => (
+                    <img key={index} src={imageUrl} alt={`Processed ${index}`} className="w-full h-auto rounded-md object-cover" />
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">No images processed yet.</p>
+              )}
             </CardContent>
           </Card>
         </div>
@@ -158,5 +295,6 @@ const Dashboard = () => (
     </div>
   </Layout>
 );
+};
 
 export default Dashboard;

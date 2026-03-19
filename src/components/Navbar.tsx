@@ -19,6 +19,7 @@ const Navbar = () => {
             { to: "/", label: "Home" },
             { to: "/pricing", label: "Pricing" },
             { to: "/features", label: "Features" },
+            { to: "/history", label: "History" },
             { to: "/api-docs", label: "API" },
           ].map((link) => (
             <Link
