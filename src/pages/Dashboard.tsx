@@ -5,8 +5,20 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Upload, Download, Image, Zap, History, CreditCard } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/lib/supabase";
 
-const UploadZone = ({ usageCount, setUsageCount, processedHistory, setProcessedHistory }: { usageCount: number; setUsageCount: React.Dispatch<React.SetStateAction<number>>; processedHistory: string[]; setProcessedHistory: React.Dispatch<React.SetStateAction<string[]>> }) => {
+const UploadZone = ({
+  usageCount,
+  setUsageCount,
+  setProcessedHistory,
+  userId,
+}: {
+  usageCount: number;
+  setUsageCount: React.Dispatch<React.SetStateAction<number>>;
+  setProcessedHistory: React.Dispatch<React.SetStateAction<string[]>>;
+  userId: string;
+}) => {
   const [isDragging, setIsDragging] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
@@ -105,6 +117,18 @@ const UploadZone = ({ usageCount, setUsageCount, processedHistory, setProcessedH
       console.log("Webhook response:", result);
       if (result && result.url) {
         const secureUrl = ensureHttpsUrl(result.url);
+        const { error: insertError } = await supabase
+          .from("processed_images")
+          .insert({ user_id: userId, image_url: secureUrl });
+
+        if (insertError) {
+          toast({
+            title: "Saved with warning",
+            description: "Image processed, but failed to save in history.",
+            variant: "destructive",
+          });
+        }
+
         setProcessedPreview(secureUrl);
         setUsageCount((prevCount) => prevCount + 1); // Increment usage count
         setProcessedHistory((prevHistory) => [secureUrl, ...prevHistory]); // Add to history
@@ -221,22 +245,42 @@ const UploadZone = ({ usageCount, setUsageCount, processedHistory, setProcessedH
 };
 
 const Dashboard = () => {
+  const { user } = useAuth();
   const [usageCount, setUsageCount] = useState(() => {
     const savedCount = localStorage.getItem("usageCount");
     return savedCount ? parseInt(savedCount, 10) : 0;
   });
-  const [processedHistory, setProcessedHistory] = useState<string[]>(() => {
-    const savedHistory = localStorage.getItem("processedHistory");
-    return savedHistory ? JSON.parse(savedHistory) : [];
-  });
+  const [processedHistory, setProcessedHistory] = useState<string[]>([]);
 
   useEffect(() => {
     localStorage.setItem("usageCount", usageCount.toString());
   }, [usageCount]);
 
   useEffect(() => {
-    localStorage.setItem("processedHistory", JSON.stringify(processedHistory));
-  }, [processedHistory]);
+    const fetchHistory = async () => {
+      if (!user) return;
+
+      const { data, error } = await supabase
+        .from("processed_images")
+        .select("image_url")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false })
+        .limit(60);
+
+      if (error) {
+        console.error("Failed to fetch processed history:", error.message);
+        return;
+      }
+
+      setProcessedHistory((data ?? []).map((row) => row.image_url));
+    };
+
+    fetchHistory();
+  }, [user]);
+
+  if (!user) {
+    return null;
+  }
 
   return (
     <Layout hideFooter>
@@ -248,7 +292,12 @@ const Dashboard = () => {
 
         <div className="grid lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2">
-            <UploadZone usageCount={usageCount} setUsageCount={setUsageCount} processedHistory={processedHistory} setProcessedHistory={setProcessedHistory} />
+            <UploadZone
+              usageCount={usageCount}
+              setUsageCount={setUsageCount}
+              setProcessedHistory={setProcessedHistory}
+              userId={user.id}
+            />
           </div>
 
         <div className="space-y-4">

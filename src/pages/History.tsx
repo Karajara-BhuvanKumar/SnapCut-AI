@@ -1,20 +1,41 @@
 import { useState, useEffect } from "react";
 import Layout from "@/components/Layout";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Download, History as HistoryIcon } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/lib/supabase";
 
 const History = () => {
+  const { user } = useAuth();
   const [processedHistory, setProcessedHistory] = useState<string[]>([]);
   const { toast } = useToast();
 
   useEffect(() => {
-    const savedHistory = localStorage.getItem("processedHistory");
-    if (savedHistory) {
-      setProcessedHistory(JSON.parse(savedHistory));
-    }
-  }, []);
+    const fetchHistory = async () => {
+      if (!user) return;
+
+      const { data, error } = await supabase
+        .from("processed_images")
+        .select("image_url")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        toast({
+          title: "Unable to load history",
+          description: error.message,
+          variant: "destructive",
+        });
+        return;
+      }
+
+      setProcessedHistory((data ?? []).map((row) => row.image_url));
+    };
+
+    fetchHistory();
+  }, [toast, user]);
 
   const handleDownload = async (imageUrl: string) => {
     try {
