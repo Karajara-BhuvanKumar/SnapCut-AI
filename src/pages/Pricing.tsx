@@ -81,7 +81,7 @@ const Pricing = () => {
     // The script is now loaded by the displayRazorpay function
   }, []);
 
-  const displayRazorpay = async () => {
+  const displayRazorpay = async (amount: string, description: string) => {
     const res = await loadScript("https://checkout.razorpay.com/v1/checkout.js");
 
     if (!res) {
@@ -95,10 +95,10 @@ const Pricing = () => {
 
     const options = {
       key: import.meta.env.VITE_RAZORPAY_KEY_ID,
-      amount: "50000", // Amount in paise (e.g., 50000 paise = INR 500)
+      amount: amount,
       currency: "INR",
       name: "SnapCut AI",
-      description: "Pro Plan Subscription",
+      description: description,
       // image: "/logo.png", // Temporarily removed to debug CORS issue
       handler: function (response: any) {
         toast({
@@ -170,7 +170,11 @@ const Pricing = () => {
                 </CardContent>
                 <CardFooter>
                   {plan.name === "Pro" ? (
-                    <Button variant={plan.variant} className="w-full" size="lg" onClick={displayRazorpay}>
+                    <Button variant={plan.variant} className="w-full" size="lg" onClick={() => displayRazorpay("49900", "Pro Plan Subscription")}>
+                      {plan.cta}
+                    </Button>
+                  ) : plan.name === "Credits" ? (
+                    <Button variant={plan.variant} className="w-full" size="lg" onClick={() => displayRazorpay("9900", "50 Credits Purchase")}>
                       {plan.cta}
                     </Button>
                   ) : (
