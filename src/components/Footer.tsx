@@ -34,18 +34,25 @@ const Footer = () => (
           {
             title: "Legal",
             links: [
-              { label: "Privacy Policy", to: "/privacy" },
-              { label: "Terms of Service", to: "/terms" },
+              { label: "Privacy Policy", to: "/privacy-policy" },
+              { label: "Refund and Cancellation", to: "/refund-cancellation" },
+              { label: "Contact Us", to: "/contact-us" },
+              { label: "Shipping & Delivery", to: "/shipping-delivery" },
+              { label: "Terms and Conditions", to: "/terms-conditions" },
             ],
           },
         ].map((section) => (
           <div key={section.title}>
             <h4 className="font-display font-semibold text-sm mb-4">{section.title}</h4>
             <ul className="space-y-2">
-              {section.links.map((link) => (
-                <li key={link.to}>
-                  <Link to={link.to} className="text-sm text-muted-foreground hover:text-primary transition-colors">
-                    {link.label}
+              {section.links.map((sectionLink) => (
+                <li key={sectionLink.to}>
+                  <Link
+                    to={sectionLink.to}
+                    className="text-sm text-muted-foreground hover:text-primary transition-colors"
+                    onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+                  >
+                    {sectionLink.label}
                   </Link>
                 </li>
               ))}

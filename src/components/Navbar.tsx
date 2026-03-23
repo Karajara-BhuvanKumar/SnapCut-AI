@@ -14,13 +14,12 @@ const Navbar = () => {
           <span className="font-display text-xl font-bold gradient-text">SnapCut AI</span>
         </Link>
 
-        <div className="hidden md:flex items-center gap-8">
+        <div className="hidden md:flex items-center gap-10">
           {[
             { to: "/", label: "Home" },
             { to: "/pricing", label: "Pricing" },
             { to: "/features", label: "Features" },
             { to: "/history", label: "History" },
-            { to: "/api-docs", label: "API" },
           ].map((link) => (
             <Link
               key={link.to}
