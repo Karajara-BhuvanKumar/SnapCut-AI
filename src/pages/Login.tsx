@@ -29,7 +29,22 @@ const Login = () => {
     });
 
     if (error) {
-      toast({ title: "Sign in failed", description: error.message, variant: "destructive" });
+      const normalized = error.message.toLowerCase();
+      if (normalized.includes("invalid login credentials")) {
+        toast({
+          title: "Invalid email or password",
+          description: "If this account exists, use Forgot Password to reset your password.",
+          variant: "destructive",
+        });
+      } else if (normalized.includes("email not confirmed")) {
+        toast({
+          title: "Email not verified",
+          description: "Please open your inbox and verify your email before signing in.",
+          variant: "destructive",
+        });
+      } else {
+        toast({ title: "Sign in failed", description: error.message, variant: "destructive" });
+      }
       setIsLoading(false);
       return;
     }
@@ -92,7 +107,12 @@ const Login = () => {
                 </div>
               </div>
               <div>
-                <Label htmlFor="password">Password</Label>
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="password">Password</Label>
+                  <Link to="/forgot-password" className="text-xs font-medium text-primary hover:underline">
+                    Forgot password?
+                  </Link>
+                </div>
                 <div className="relative mt-1.5">
                   <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                   <Input

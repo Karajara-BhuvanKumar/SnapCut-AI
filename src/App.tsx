@@ -8,6 +8,8 @@ import Pricing from "./pages/Pricing";
 import Dashboard from "./pages/Dashboard";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
+import ForgotPassword from "./pages/ForgotPassword";
+import ResetPassword from "./pages/ResetPassword";
 import History from "./pages/History";
 import Features from "./pages/Features"; // Import Features component
 import PrivacyPolicy from "./pages/PrivacyPolicy";
@@ -50,6 +52,8 @@ const App = () => (
             />
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/privacy-policy" element={<PrivacyPolicy />} />
             <Route path="/refund-cancellation" element={<RefundAndCancellation />} />
             <Route path="/contact-us" element={<ContactUs />} />
