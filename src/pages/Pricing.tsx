@@ -1,10 +1,12 @@
 import { Check } from "lucide-react";
-import { Link } from "react-router-dom";
-import { useEffect } from "react"; // Import useEffect
-import { useToast } from "@/hooks/use-toast"; // Import useToast
-import Layout from "@/components/Layout"; // Import Layout
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"; // Import Card components
-import { Button } from "@/components/ui/button"; // Import Button component
+import { Link, useNavigate } from "react-router-dom";
+import { useEffect } from "react"; 
+import { useToast } from "@/hooks/use-toast"; 
+import Layout from "@/components/Layout"; 
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"; 
+import { Button } from "@/components/ui/button"; 
+import { useAuth } from "@/contexts/AuthContext";
+import { addCredits } from "@/lib/credits";
 
 const loadScript = (src: string) => {
   return new Promise((resolve) => {
@@ -33,7 +35,7 @@ const plans = [
     price: "₹0",
     period: "forever",
     features: [
-      "5 images per day",
+      "2 signup credits",
       "Standard quality",
       "JPG, PNG, WEBB support",
       "Max 10MB per image",
@@ -43,11 +45,11 @@ const plans = [
   },
   {
     name: "Pro",
-    description: "For professionals who need unlimited access.",
+    description: "Receive 10 credits every month.",
     price: "₹499",
     period: "/month",
     features: [
-      "Unlimited images",
+      "10 credits per month",
       "HD quality output",
       "Batch processing",
       "Priority processing",
@@ -60,11 +62,11 @@ const plans = [
   },
   {
     name: "Credits",
-    description: "Pay only for what you use.",
+    description: "Buy credits as you need them.",
     price: "₹99",
-    period: "per 50 credits",
+    period: "one-time",
     features: [
-      "50 image credits",
+      "5 one-time credits",
       "HD quality output",
       "No expiry",
       "API access",
@@ -75,13 +77,56 @@ const plans = [
 ];
 
 const Pricing = () => {
-  const { toast } = useToast(); // Initialize toast
+  const { toast } = useToast();
+  const { user } = useAuth();
+  const navigate = useNavigate();
 
-  useEffect(() => {
-    // The script is now loaded by the displayRazorpay function
-  }, []);
+  const handlePaymentSuccess = async (planName: string) => {
+    if (!user) {
+      console.warn("[pricing] handlePaymentSuccess: missing user");
+      return;
+    }
 
-  const displayRazorpay = async (amount: string, description: string) => {
+    let creditsToAdd = 0;
+    if (planName === "Pro") creditsToAdd = 10;
+    if (planName === "Credits") creditsToAdd = 5;
+
+    const { error } = await addCredits(creditsToAdd, user);
+
+    if (error) {
+      console.error("[pricing] addCredits failed", error);
+      toast({
+        title: "Credits not updated",
+        description: error.message ?? "Unknown error",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (planName === "Pro") {
+      try {
+        localStorage.setItem("snapcut:isPro", "true");
+        console.log("[pricing] marked user as Pro (localStorage)");
+      } catch (e) {
+        console.warn("[pricing] failed to persist Pro flag", e);
+      }
+    }
+
+    toast({
+      title: "Credits Added",
+      description: `Successfully added ${creditsToAdd} credits to your account!`,
+      variant: "success",
+    });
+    navigate("/dashboard");
+  };
+
+  const displayRazorpay = async (amount: string, description: string, planName: string) => {
+    if (!user) {
+      toast({ title: "Login Required", description: "Please sign in to purchase credits.", variant: "destructive" });
+      navigate("/login");
+      return;
+    }
+
     const res = await loadScript("https://checkout.razorpay.com/v1/checkout.js");
 
     if (!res) {
@@ -99,21 +144,16 @@ const Pricing = () => {
       currency: "INR",
       name: "SnapCut AI",
       description: description,
-      // image: "/logo.png", // Temporarily removed to debug CORS issue
       handler: function (response: any) {
         toast({
           title: "Payment Successful",
           description: `Payment ID: ${response.razorpay_payment_id}`,
         });
-        // You would typically verify the payment on your backend here
+        handlePaymentSuccess(planName);
       },
       prefill: {
-        name: "User Name", // Replace with actual user name
-        email: "user@example.com", // Replace with actual user email
-        contact: "9999999999", // Replace with actual user contact
-      },
-      notes: {
-        address: "Razorpay Corporate Office",
+        name: user.user_metadata?.full_name || "User",
+        email: user.email || "",
       },
       theme: {
         color: "#3399cc",
@@ -170,11 +210,11 @@ const Pricing = () => {
                 </CardContent>
                 <CardFooter>
                   {plan.name === "Pro" ? (
-                    <Button variant={plan.variant} className="w-full" size="lg" onClick={() => displayRazorpay("49900", "Pro Plan Subscription")}>
+                    <Button variant={plan.variant} className="w-full" size="lg" onClick={() => displayRazorpay("49900", "Pro Plan Subscription", "Pro")}>
                       {plan.cta}
                     </Button>
                   ) : plan.name === "Credits" ? (
-                    <Button variant={plan.variant} className="w-full" size="lg" onClick={() => displayRazorpay("9900", "50 Credits Purchase")}>
+                    <Button variant={plan.variant} className="w-full" size="lg" onClick={() => displayRazorpay("9900", "5 credits purchase", "Credits")}>
                       {plan.cta}
                     </Button>
                   ) : (

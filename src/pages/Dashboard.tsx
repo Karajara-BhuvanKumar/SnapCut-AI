@@ -7,16 +7,17 @@ import { Upload, Download, Image, Zap, History, CreditCard } from "lucide-react"
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase";
+import { getUserProfile } from "@/lib/credits";
 
 const UploadZone = ({
-  usageCount,
-  setUsageCount,
+  credits,
+  setCredits,
   setProcessedHistory,
   userId,
 }: {
-  usageCount: number;
-  setUsageCount: React.Dispatch<React.SetStateAction<number>>;
-  setProcessedHistory: React.Dispatch<React.SetStateAction<string[]>>;
+  credits: number;
+  setCredits: React.Dispatch<React.SetStateAction<number | null>>;
+  setProcessedHistory: React.Dispatch<React.SetStateAction<any[]>>;
   userId: string;
 }) => {
   const [isDragging, setIsDragging] = useState(false);
@@ -25,8 +26,6 @@ const UploadZone = ({
   const [processedPreview, setProcessedPreview] = useState<string | null>(null);
   const { toast } = useToast();
   const navigate = useNavigate();
-
-  const MAX_USAGE = 5;
 
   const validateFile = (file: File): boolean => {
     const validTypes = ["image/jpeg", "image/png", "image/webp"];
@@ -71,10 +70,6 @@ const UploadZone = ({
     }
   }, [handleFile]);
 
-
-
-
-
   const ensureHttpsUrl = (url: string): string => {
     if (url.startsWith("http://res.cloudinary.com")) {
       return url.replace("http://", "https://");
@@ -88,10 +83,10 @@ const UploadZone = ({
       return;
     }
 
-    if (usageCount >= MAX_USAGE) {
+    if (credits <= 0) {
       toast({
-        title: "Usage Limit Reached",
-        description: `You have processed ${MAX_USAGE} images. Please upgrade to process more.`,
+        title: "No Credits Left",
+        description: `You have 0 credits. Please upgrade or buy more to process images.`,
         variant: "destructive",
       });
       navigate("/pricing");
@@ -114,12 +109,20 @@ const UploadZone = ({
       }
 
       const result = await response.json();
-      console.log("Webhook response:", result);
       if (result && result.url) {
         const secureUrl = ensureHttpsUrl(result.url);
-        const { error: insertError } = await supabase
+        
+        // Use a RPC or transaction if possible, but for simplicity here:
+        const { data: newImageData, error: insertError } = await supabase
           .from("processed_images")
-          .insert({ user_id: userId, image_url: secureUrl });
+          .insert({ 
+            user_id: userId, 
+            image_url: secureUrl,
+            file_name: selectedFile.name,
+            download_count: 0
+          })
+          .select()
+          .single();
 
         if (insertError) {
           toast({
@@ -127,22 +130,23 @@ const UploadZone = ({
             description: "Image processed, but failed to save in history.",
             variant: "destructive",
           });
+        } else {
+          // Deduct credit in database
+          const { error: creditError } = await supabase
+            .from("profiles")
+            .update({ credits: credits - 1 })
+            .eq("id", userId);
+
+          if (creditError) {
+            console.error("Failed to deduct credit:", creditError.message);
+          } else {
+            setCredits(credits - 1);
+          }
+          
+          setProcessedPreview(secureUrl);
+          setProcessedHistory((prevHistory) => [newImageData, ...prevHistory.slice(0, 5)]); 
+          toast({ title: "Success", description: "Background removed! 1 credit used.", variant: "success" });
         }
-
-        setProcessedPreview(secureUrl);
-        setUsageCount((prevCount) => prevCount + 1); // Increment usage count
-        setProcessedHistory((prevHistory) => [secureUrl, ...prevHistory]); // Add to history
-        toast({ title: "Success", description: "Background removed! Displaying processed image.", variant: "success" });
-
-        if (usageCount + 1 >= MAX_USAGE) { // Check if limit is reached after incrementing
-          toast({
-            title: "Usage Limit Reached",
-            description: `You have processed ${MAX_USAGE} images. Redirecting to pricing page.`,
-            variant: "destructive",
-          });
-          navigate("/pricing");
-        }
-
       } else {
         toast({ title: "Error", description: "Webhook response did not contain a valid image URL.", variant: "destructive" });
       }
@@ -155,16 +159,24 @@ const UploadZone = ({
   const handleDownload = async () => {
     if (processedPreview) {
       try {
+        // Find the image record in history to increment download count
+        const currentImage = (setProcessedHistory as any).state?.find((img: any) => img.image_url === processedPreview);
+        
         const response = await fetch(processedPreview);
         const blob = await response.blob();
         const url = window.URL.createObjectURL(blob);
         const link = document.createElement("a");
         link.href = url;
-        link.download = "processed-image.png"; // You can make this dynamic if needed
+        link.download = selectedFile?.name ? `bg-removed-${selectedFile.name}` : "processed-image.png";
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
-        window.URL.revokeObjectURL(url); // Clean up the object URL
+        window.URL.revokeObjectURL(url);
+
+        // Increment download count in DB
+        const { data, error } = await supabase.rpc('increment_download_count', { image_url_val: processedPreview });
+        if (error) console.error("Failed to increment download count:", error);
+
         toast({ title: "Download Started", description: "Your processed image is downloading.", variant: "success" });
       } catch (error) {
         console.error("Error downloading image:", error);
@@ -246,36 +258,79 @@ const UploadZone = ({
 
 const Dashboard = () => {
   const { user } = useAuth();
-  const [usageCount, setUsageCount] = useState(() => {
-    const savedCount = localStorage.getItem("usageCount");
-    return savedCount ? parseInt(savedCount, 10) : 0;
-  });
-  const [processedHistory, setProcessedHistory] = useState<string[]>([]);
+  const { toast } = useToast();
+  const [credits, setCredits] = useState<number | null>(null);
+  const [processedHistory, setProcessedHistory] = useState<any[]>([]);
+  const [isHistoryLoading, setIsHistoryLoading] = useState(true);
+  const [isPro, setIsPro] = useState(false);
 
   useEffect(() => {
-    localStorage.setItem("usageCount", usageCount.toString());
-  }, [usageCount]);
+    try {
+      setIsPro(localStorage.getItem("snapcut:isPro") === "true");
+    } catch (e) {
+      console.warn("[dashboard] unable to read Pro flag", e);
+      setIsPro(false);
+    }
+  }, []);
 
   useEffect(() => {
-    const fetchHistory = async () => {
+    const fetchData = async () => {
       if (!user) return;
+      setIsHistoryLoading(true);
 
-      const { data, error } = await supabase
-        .from("processed_images")
-        .select("image_url")
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: false })
-        .limit(60);
+      // Fetch user credits from profiles
+      const { profile: profileData, error: profileError } = await getUserProfile(user);
 
-      if (error) {
-        console.error("Failed to fetch processed history:", error.message);
-        return;
+      if (profileError) {
+        const message = (profileError as any)?.message ?? String(profileError) ?? "Unknown error";
+        console.error("[dashboard] Failed to fetch credits:", message);
+        const messageLower = message.toLowerCase();
+
+        const isMissingProfilesTable =
+          (profileError as any)?.code === "PGRST116" ||
+          messageLower.includes("could not find the table") ||
+          messageLower.includes("does not exist") ||
+          messageLower.includes("not found in schema cache");
+
+        const isPermissionOrRls =
+          messageLower.includes("permission") ||
+          messageLower.includes("rls") ||
+          messageLower.includes("row level security");
+
+        toast({
+          title: isMissingProfilesTable
+            ? "Credits table missing"
+            : isPermissionOrRls
+              ? "Credits access blocked (RLS)"
+              : "Unable to load credits",
+          description: isMissingProfilesTable
+            ? "Run the Supabase SQL setup to create `public.profiles` (and policies) so your credits can be read/updated."
+            : message,
+          variant: "destructive",
+        });
+
+        setCredits(0);
+      } else {
+        setCredits(profileData?.credits ?? 0);
       }
 
-      setProcessedHistory((data ?? []).map((row) => row.image_url));
+      // Fetch history
+      const { data: historyData, error: historyError } = await supabase
+        .from("processed_images")
+        .select("*")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false })
+        .limit(6);
+
+      if (historyError) {
+        console.error("Failed to fetch history:", historyError.message);
+      } else {
+        setProcessedHistory(historyData ?? []);
+      }
+      setIsHistoryLoading(false);
     };
 
-    fetchHistory();
+    fetchData();
   }, [user]);
 
   if (!user) {
@@ -293,8 +348,8 @@ const Dashboard = () => {
         <div className="grid lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2">
             <UploadZone
-              usageCount={usageCount}
-              setUsageCount={setUsageCount}
+              credits={credits ?? 0}
+              setCredits={setCredits}
               setProcessedHistory={setProcessedHistory}
               userId={user.id}
             />
@@ -304,14 +359,14 @@ const Dashboard = () => {
           <Card className="glow-hover">
             <CardHeader className="pb-3">
               <CardTitle className="text-sm font-medium flex items-center gap-2">
-                <Image className="h-4 w-4 text-primary" /> Today's Usage
+                <Zap className="h-4 w-4 text-primary" /> Remaining Credits
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold">{usageCount} / 5</div>
-              <p className="text-xs text-muted-foreground mt-1">images processed today</p>
+              <div className="text-3xl font-bold">{credits !== null ? credits : "..."}</div>
+              <p className="text-xs text-muted-foreground mt-1">available for processing</p>
               <div className="w-full h-2 bg-muted rounded-full mt-3">
-                <div className="h-2 gradient-bg rounded-full" style={{ width: `${(usageCount / 5) * 100}%` }} />
+                <div className="h-2 gradient-bg rounded-full" style={{ width: `${Math.min((credits ?? 0) * 10, 100)}%` }} />
               </div>
             </CardContent>
           </Card>
@@ -324,8 +379,12 @@ const Dashboard = () => {
             </CardHeader>
             <CardContent>
               <div className="text-lg font-bold">Free</div>
-              <p className="text-xs text-muted-foreground mt-1">5 images/day</p>
-              <Button variant="gradient" size="sm" className="w-full mt-3">Upgrade</Button>
+              <p className="text-xs text-muted-foreground mt-1">2 signup credits</p>
+              {(!isPro || (credits ?? 0) === 0) && (
+                <Button variant="gradient" size="sm" className="w-full mt-3" onClick={() => navigate("/pricing")}>
+                  Upgrade
+                </Button>
+              )}
             </CardContent>
           </Card>
 
@@ -336,15 +395,23 @@ const Dashboard = () => {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              {processedHistory.length > 0 ? (
+              {isHistoryLoading ? (
+                <p className="text-sm text-muted-foreground">Loading history...</p>
+              ) : processedHistory.length > 0 ? (
                 <div className="grid grid-cols-3 gap-2">
-                  {processedHistory.map((imageUrl, index) => (
-                    <img key={index} src={imageUrl} alt={`Processed ${index}`} className="w-full h-auto rounded-md object-cover" />
+                  {processedHistory.map((item, index) => (
+                    <div key={item.id || index} className="group relative aspect-square">
+                      <img src={item.image_url} alt={item.file_name || `Processed ${index}`} className="w-full h-full rounded-md object-cover border border-border/50" />
+                      <div className="absolute inset-0 flex items-center justify-center bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity rounded-md">
+                        <p className="text-[10px] text-white font-medium px-1 text-center truncate w-full">{item.file_name || "Untitled"}</p>
+                      </div>
+                    </div>
                   ))}
                 </div>
               ) : (
                 <p className="text-sm text-muted-foreground">No images processed yet.</p>
               )}
+              <Button variant="link" size="sm" className="w-full mt-2 h-auto p-0" onClick={() => navigate("/history")}>View All History</Button>
             </CardContent>
           </Card>
         </div>

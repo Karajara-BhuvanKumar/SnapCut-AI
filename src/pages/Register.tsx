@@ -49,9 +49,31 @@ const Register = () => {
       return;
     }
 
+    // Initialize profile with 2 free credits
+    if (error === null) {
+      const { data: userData } = await supabase.auth.getUser();
+      if (userData?.user) {
+        const { error: profileInsertError } = await supabase
+          .from("profiles")
+          .insert({
+            id: userData.user.id,
+            credits: 2,
+            full_name: fullName.trim(),
+          });
+
+        if (profileInsertError) {
+          toast({
+            title: "Profile setup failed",
+            description: profileInsertError.message,
+            variant: "destructive",
+          });
+        }
+      }
+    }
+
     toast({
       title: "Account created",
-      description: "Signup successful. Please verify your email if prompted, then sign in.",
+      description: "Signup successful. Start with 2 free credits!",
       variant: "success",
     });
 
@@ -81,7 +103,7 @@ const Register = () => {
               </div>
 
               <div className="space-y-3 text-sm">
-                {["5 free credits every day", "No card needed to begin", "High-quality transparent PNG output"].map((item) => (
+                {["2 free credits to start", "No card needed to begin", "High-quality transparent PNG output"].map((item) => (
                   <div key={item} className="flex items-center gap-2 text-muted-foreground">
                     <CheckCircle2 className="h-4 w-4 text-secondary" />
                     {item}

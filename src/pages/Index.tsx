@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import Layout from "@/components/Layout";
+import { useAuth } from "@/contexts/AuthContext";
 import {
   ArrowRight,
   BadgeCheck,
@@ -14,83 +15,86 @@ import {
   Wand2,
 } from "lucide-react";
 
-const HeroSection = () => (
-  <section className="relative overflow-hidden py-24">
-    <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,hsl(var(--primary)/0.18),transparent_55%)]" />
-    <div className="absolute left-0 top-24 h-64 w-64 rounded-full bg-secondary/20 blur-[110px]" />
-    <div className="absolute right-0 bottom-8 h-72 w-72 rounded-full bg-accent/20 blur-[120px]" />
+const HeroSection = () => {
+  const { user } = useAuth();
+  return (
+    <section className="relative overflow-hidden py-24">
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,hsl(var(--primary)/0.18),transparent_55%)]" />
+      <div className="absolute left-0 top-24 h-64 w-64 rounded-full bg-secondary/20 blur-[110px]" />
+      <div className="absolute right-0 bottom-8 h-72 w-72 rounded-full bg-accent/20 blur-[120px]" />
 
-    <div className="container relative">
-      <div className="grid gap-10 lg:grid-cols-[1.1fr_0.9fr] lg:items-center">
-        <div>
-          <span className="mb-6 inline-flex items-center gap-2 rounded-full border border-border/60 bg-card/40 px-4 py-1.5 text-sm text-muted-foreground">
-            <Sparkles className="h-4 w-4 text-secondary" />
-            AI Background Removal for Creators
-          </span>
-          <h1 className="font-display text-4xl font-extrabold leading-tight md:text-6xl">
-            Create clean product photos in{" "}
-            <span className="gradient-text">seconds</span>.
-          </h1>
-          <p className="mt-5 max-w-xl text-base text-muted-foreground md:text-lg">
-            Remove image backgrounds with one click, keep sharp edges, and download transparent PNGs ready for stores, ads, and social media.
-          </p>
-          <div className="mt-8 flex flex-col gap-4 sm:flex-row">
-            <Link to="/register">
-              <Button variant="gradient" size="xl">
-                Start Free
-                <ArrowRight className="h-5 w-5" />
-              </Button>
-            </Link>
-            <Link to="/pricing">
-              <Button variant="outline" size="xl">View Pricing</Button>
-            </Link>
+      <div className="container relative">
+        <div className="grid gap-10 lg:grid-cols-[1.1fr_0.9fr] lg:items-center">
+          <div>
+            <span className="mb-6 inline-flex items-center gap-2 rounded-full border border-border/60 bg-card/40 px-4 py-1.5 text-sm text-muted-foreground">
+              <Sparkles className="h-4 w-4 text-secondary" />
+              AI Background Removal for Creators
+            </span>
+            <h1 className="font-display text-4xl font-extrabold leading-tight md:text-6xl">
+              Create clean product photos in{" "}
+              <span className="gradient-text">seconds</span>.
+            </h1>
+            <p className="mt-5 max-w-xl text-base text-muted-foreground md:text-lg">
+              Remove image backgrounds with one click, keep sharp edges, and download transparent PNGs ready for stores, ads, and social media.
+            </p>
+            <div className="mt-8 flex flex-col gap-4 sm:flex-row">
+              <Link to={user ? "/dashboard" : "/register"}>
+                <Button variant="gradient" size="xl">
+                  {user ? "Go to Dashboard" : "Start Free"}
+                  <ArrowRight className="h-5 w-5" />
+                </Button>
+              </Link>
+              <Link to="/pricing">
+                <Button variant="outline" size="xl">View Pricing</Button>
+              </Link>
+            </div>
+            <div className="mt-8 grid max-w-lg grid-cols-3 gap-4 text-sm">
+              <div className="rounded-xl border border-border/60 bg-card/40 px-4 py-3">
+                <p className="font-semibold text-foreground">2 free</p>
+                <p className="text-muted-foreground">credits on signup</p>
+              </div>
+              <div className="rounded-xl border border-border/60 bg-card/40 px-4 py-3">
+                <p className="font-semibold text-foreground">under 5s</p>
+                <p className="text-muted-foreground">average speed</p>
+              </div>
+              <div className="rounded-xl border border-border/60 bg-card/40 px-4 py-3">
+                <p className="font-semibold text-foreground">HD PNG</p>
+                <p className="text-muted-foreground">transparent output</p>
+              </div>
+            </div>
           </div>
-          <div className="mt-8 grid max-w-lg grid-cols-3 gap-4 text-sm">
-            <div className="rounded-xl border border-border/60 bg-card/40 px-4 py-3">
-              <p className="font-semibold text-foreground">5 free</p>
-              <p className="text-muted-foreground">credits daily</p>
-            </div>
-            <div className="rounded-xl border border-border/60 bg-card/40 px-4 py-3">
-              <p className="font-semibold text-foreground">under 5s</p>
-              <p className="text-muted-foreground">average speed</p>
-            </div>
-            <div className="rounded-xl border border-border/60 bg-card/40 px-4 py-3">
-              <p className="font-semibold text-foreground">HD PNG</p>
-              <p className="text-muted-foreground">transparent output</p>
-            </div>
-          </div>
-        </div>
 
-        <div className="rounded-2xl border border-border/60 bg-card/60 p-6 shadow-2xl backdrop-blur-xl">
-          <div className="mb-5 flex items-center justify-between">
-            <p className="font-display text-lg font-semibold">Quick Preview</p>
-            <span className="rounded-full bg-primary/15 px-3 py-1 text-xs text-primary">Live AI</span>
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="rounded-xl border border-border/60 bg-muted/30 p-4">
-              <p className="mb-3 text-xs uppercase tracking-wide text-muted-foreground">Original</p>
-              <div className="h-40 rounded-lg bg-gradient-to-b from-muted/70 to-card" />
+          <div className="rounded-2xl border border-border/60 bg-card/60 p-6 shadow-2xl backdrop-blur-xl">
+            <div className="mb-5 flex items-center justify-between">
+              <p className="font-display text-lg font-semibold">Quick Preview</p>
+              <span className="rounded-full bg-primary/15 px-3 py-1 text-xs text-primary">Live AI</span>
             </div>
-            <div className="rounded-xl border border-border/60 bg-muted/30 p-4">
-              <p className="mb-3 text-xs uppercase tracking-wide text-muted-foreground">Removed</p>
-              <div className="h-40 rounded-lg bg-[linear-gradient(45deg,hsl(var(--muted))_25%,transparent_25%,transparent_50%,hsl(var(--muted))_50%,hsl(var(--muted))_75%,transparent_75%,transparent)] bg-[length:24px_24px]" />
+            <div className="grid grid-cols-2 gap-4">
+              <div className="rounded-xl border border-border/60 bg-muted/30 p-4">
+                <p className="mb-3 text-xs uppercase tracking-wide text-muted-foreground">Original</p>
+                <div className="h-40 rounded-lg bg-gradient-to-b from-muted/70 to-card" />
+              </div>
+              <div className="rounded-xl border border-border/60 bg-muted/30 p-4">
+                <p className="mb-3 text-xs uppercase tracking-wide text-muted-foreground">Removed</p>
+                <div className="h-40 rounded-lg bg-[linear-gradient(45deg,hsl(var(--muted))_25%,transparent_25%,transparent_50%,hsl(var(--muted))_50%,hsl(var(--muted))_75%,transparent_75%,transparent)] bg-[length:24px_24px]" />
+              </div>
             </div>
-          </div>
-          <div className="mt-4 space-y-2 rounded-xl border border-border/60 bg-background/50 p-4 text-sm">
-            <div className="flex items-center justify-between">
-              <span className="text-muted-foreground">Edge Quality</span>
-              <span className="font-semibold text-foreground">Excellent</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-muted-foreground">Processing Time</span>
-              <span className="font-semibold text-foreground">3.8s</span>
+            <div className="mt-4 space-y-2 rounded-xl border border-border/60 bg-background/50 p-4 text-sm">
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">Edge Quality</span>
+                <span className="font-semibold text-foreground">Excellent</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">Processing Time</span>
+                <span className="font-semibold text-foreground">3.8s</span>
+              </div>
             </div>
           </div>
         </div>
       </div>
-    </div>
-  </section>
-);
+    </section>
+  );
+};
 
 const HowItWorks = () => {
   const steps = [
@@ -170,28 +174,39 @@ const Features = () => {
   );
 };
 
-const CTASection = () => (
-  <section className="border-t border-border/30 py-24">
-    <div className="container">
-      <div className="mx-auto max-w-4xl rounded-2xl border border-border/60 bg-card/50 p-10 text-center shadow-2xl backdrop-blur-xl">
-        <h2 className="font-display text-3xl font-bold md:text-4xl">
-          Ready to make product images look premium?
-        </h2>
-        <p className="mx-auto mt-4 max-w-2xl text-muted-foreground">
-          Create your account and start with free daily credits. Upgrade anytime when you need more volume.
-        </p>
-        <div className="mt-8 flex flex-col justify-center gap-4 sm:flex-row">
-          <Link to="/register">
-            <Button variant="gradient" size="xl">Create Free Account</Button>
-          </Link>
-          <Link to="/login">
-            <Button variant="outline" size="xl">Sign In</Button>
-          </Link>
+const CTASection = () => {
+  const { user } = useAuth();
+  return (
+    <section className="border-t border-border/30 py-24">
+      <div className="container">
+        <div className="mx-auto max-w-4xl rounded-2xl border border-border/60 bg-card/50 p-10 text-center shadow-2xl backdrop-blur-xl">
+          <h2 className="font-display text-3xl font-bold md:text-4xl">
+            Ready to make product images look premium?
+          </h2>
+          <p className="mx-auto mt-4 max-w-2xl text-muted-foreground">
+            {user ? "Welcome back! Ready to process more images?" : "Create your account and start with free signup credits. Upgrade anytime when you need more volume."}
+          </p>
+          <div className="mt-8 flex flex-col justify-center gap-4 sm:flex-row">
+            {user ? (
+              <Link to="/dashboard">
+                <Button variant="gradient" size="xl">Go to Dashboard</Button>
+              </Link>
+            ) : (
+              <>
+                <Link to="/register">
+                  <Button variant="gradient" size="xl">Create Free Account</Button>
+                </Link>
+                <Link to="/login">
+                  <Button variant="outline" size="xl">Sign In</Button>
+                </Link>
+              </>
+            )}
+          </div>
         </div>
       </div>
-    </div>
-  </section>
-);
+    </section>
+  );
+};
 
 const Index = () => (
   <Layout>
